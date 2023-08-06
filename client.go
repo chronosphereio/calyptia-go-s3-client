@@ -15,25 +15,40 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bmatcuk/doublestar"
 	"github.com/calyptia/go-s3-client/ifaces"
-	"github.com/calyptia/plugin"
 )
 
 type (
+
+	// Logger interface to represent a fluent-bit logging mechanism.
+	Logger interface {
+		Error(format string, a ...any)
+		Warn(format string, a ...any)
+		Info(format string, a ...any)
+		Debug(format string, a ...any)
+	}
+
 	// Client is the interface for interacting with an S3 bucket.
 	Client interface {
 		ListFiles(ctx context.Context, bucket, pattern string) ([]string, error)
-		ReadFiles(ctx context.Context, bucket string, files []string, ch chan<- plugin.Message) error
+		ReadFiles(ctx context.Context, bucket string, files []string, concurrency int, ch chan<- any) error
 	}
 	// DefaultClient is a concrete implementation of the Client interface that uses the AWS SDK for Go to interact with S3.
 	DefaultClient struct {
 		Client
 		Svc    ifaces.Client
-		Logger plugin.Logger
+		Logger Logger
+	}
+
+	// Message is the msg format as specified by the plugin library (https://github.com/calyptia/plugin/blob/785e54918feb3efb78f9ddeadf135dc4f75fa5b0/plugin.go#L77C1-L81C2)
+	Message struct {
+		Time   time.Time
+		Record any
+		tag    *string
 	}
 )
 
 // New returns a new DefaultClient configured with the given options and using the provided logger.
-func New(ctx context.Context, logger plugin.Logger, optsFns ...ClientOptsFunc) (*DefaultClient, error) {
+func New(ctx context.Context, logger Logger, optsFns ...ClientOptsFunc) (*DefaultClient, error) {
 	var opts ClientOpts
 	for _, optFn := range optsFns {
 		err := optFn(&opts)
@@ -78,7 +93,7 @@ func (c *DefaultClient) ListFiles(ctx context.Context, bucket, pattern string) (
 			params.Prefix = &prefix
 		}
 
-		c.Logger.Debug("listing files on bucket: %q with prefix: %q that follows pattern: %q", bucket, prefix, pattern)
+		c.Logger.Info("listing files on bucket: %q with prefix: %q that follows pattern: %q", bucket, prefix, pattern)
 		p := s3.NewListObjectsV2Paginator(c.Svc, params)
 
 		for p.HasMorePages() {
@@ -94,7 +109,7 @@ func (c *DefaultClient) ListFiles(ctx context.Context, bucket, pattern string) (
 				}
 			}
 		}
-		c.Logger.Debug("found: %d file(s) on bucket: %q that follows pattern: %q", len(files), bucket, pattern)
+		c.Logger.Info("found: %d file(s) on bucket: %q that follows pattern: %q", len(files), bucket, pattern)
 		return files, nil
 	}
 
@@ -121,7 +136,7 @@ func (c *DefaultClient) ListFiles(ctx context.Context, bucket, pattern string) (
 //
 // The function returns an error if there is a problem reading the files or sending
 // the messages.
-func (c *DefaultClient) ReadFiles(ctx context.Context, bucket string, files []string, concurrency int, ch chan<- plugin.Message) error {
+func (c *DefaultClient) ReadFiles(ctx context.Context, bucket string, files []string, concurrency int, ch chan<- any) error {
 	// Create a done channel to signal when all the files have been processed
 	done := make(chan bool)
 	// Create an error channel to handle any errors that occur while processing the files
@@ -180,7 +195,7 @@ func (c *DefaultClient) ReadFiles(ctx context.Context, bucket string, files []st
 				}
 			}(resp.Body)
 
-			c.Logger.Debug("getting a filename reader for filename: %q and content-type %q", filename, *resp.ContentType)
+			c.Logger.Info("getting a filename reader for filename: %q and content-type %q", filename, *resp.ContentType)
 
 			// Get a reader for the filename based on its content type
 			reader, err := GetFileReader(filename)(resp.Body)
@@ -200,7 +215,7 @@ func (c *DefaultClient) ReadFiles(ctx context.Context, bucket string, files []st
 			scanner := bufio.NewScanner(reader)
 			for scanner.Scan() {
 				// Send each line of the filename as a message on the channel
-				ch <- plugin.Message{
+				ch <- Message{
 					Time: time.Now(),
 					Record: map[string]string{
 						"_raw":   scanner.Text(),
@@ -239,7 +254,7 @@ func (c *DefaultClient) ReadFiles(ctx context.Context, bucket string, files []st
 		case err := <-errChan:
 			// If there is an error on the errChan channel, log it and check if it is critical.
 			// If it is critical, return the error.
-			c.Logger.Error("error while processing file: %w", err)
+			c.Logger.Error("error while processing file from s3 bucket:%w", err)
 			if isCritical(err) {
 				return err
 			}

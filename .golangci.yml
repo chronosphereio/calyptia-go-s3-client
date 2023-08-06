@@ -1,6 +1,6 @@
 linters-settings:
   goimports:
-    local-prefixes: github.com/calyptia/enterprise-plugin-s3-replay
+    local-prefixes: github.com/calyptia/go-s3-client
   golint:
     min-confidence: 0.8
   gocyclo:

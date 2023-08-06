@@ -10,7 +10,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.31
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.1
 	github.com/bmatcuk/doublestar v1.3.4
-	github.com/calyptia/plugin v0.1.7
 )
 
 require (
@@ -29,7 +28,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.21.1 // indirect
 	github.com/aws/smithy-go v1.14.0 // indirect
-	github.com/calyptia/cmetrics-go v0.1.7 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
-	github.com/ugorji/go/codec v1.2.7 // indirect
 )

@@ -16,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/calyptia/go-s3-client/ifaces"
-	"github.com/calyptia/plugin"
 )
 
 type NullLogger struct{}
@@ -26,8 +25,8 @@ func (n NullLogger) Warn(format string, a ...any)  {}
 func (n NullLogger) Info(format string, a ...any)  {}
 func (n NullLogger) Debug(format string, a ...any) {}
 
-func msgsFromFile(filePath string) ([]plugin.Message, error) {
-	var out []plugin.Message
+func msgsFromFile(filePath string) ([]Message, error) {
+	var out []Message
 
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -48,10 +47,10 @@ func msgsFromFile(filePath string) ([]plugin.Message, error) {
 	}
 	defer reader.Close()
 
-	var msgs []plugin.Message
+	var msgs []Message
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		msgs = append(msgs, plugin.Message{
+		msgs = append(msgs, Message{
 			Record: map[string]string{
 				"_raw": scanner.Text(),
 				"file": path,
@@ -70,9 +69,9 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 			name             string
 			clientMock       ifaces.ClientMock
 			files            []string
-			channel          chan plugin.Message
+			channel          chan any
 			expectedErr      error
-			expectedMessages func() []plugin.Message
+			expectedMessages func() []Message
 			bucket           string
 		}{
 			{
@@ -88,9 +87,9 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 						}, nil
 					},
 				},
-				channel: make(chan plugin.Message),
-				expectedMessages: func() []plugin.Message {
-					return []plugin.Message{{
+				channel: make(chan any),
+				expectedMessages: func() []Message {
+					return []Message{{
 						Record: map[string]string{
 							"_raw": "single line",
 							"file": "single-line-file.txt",
@@ -118,8 +117,8 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 						}, nil
 					},
 				},
-				channel: make(chan plugin.Message),
-				expectedMessages: func() []plugin.Message {
+				channel: make(chan any),
+				expectedMessages: func() []Message {
 					msgs, err := msgsFromFile("testdata/large-file.csv.gz")
 					assert.NoError(t, err)
 					assert.NotZero(t, msgs)
@@ -146,8 +145,8 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 						}, nil
 					},
 				},
-				channel: make(chan plugin.Message),
-				expectedMessages: func() []plugin.Message {
+				channel: make(chan any),
+				expectedMessages: func() []Message {
 					msgs, err := msgsFromFile("testdata/large-file-invalid-content-type.csv.gz")
 					assert.NoError(t, err)
 					assert.NotZero(t, msgs)
@@ -173,7 +172,7 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 					for {
 						select {
 						case msg := <-tc.channel:
-							receivedRecord, ok := msg.Record.(map[string]string)
+							receivedRecord, ok := msg.(Message).Record.(map[string]string)
 							assert.NotZero(t, ok)
 							expectedRecord, ok := expectedMessages[idx].Record.(map[string]string)
 							assert.NotZero(t, ok)
