@@ -69,7 +69,7 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 			name             string
 			clientMock       ifaces.ClientMock
 			files            []string
-			channel          chan any
+			channel          chan Message
 			expectedErr      error
 			expectedMessages func() []Message
 			bucket           string
@@ -87,7 +87,7 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 						}, nil
 					},
 				},
-				channel: make(chan any),
+				channel: make(chan Message),
 				expectedMessages: func() []Message {
 					return []Message{{
 						Record: map[string]string{
@@ -117,7 +117,7 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 						}, nil
 					},
 				},
-				channel: make(chan any),
+				channel: make(chan Message),
 				expectedMessages: func() []Message {
 					msgs, err := msgsFromFile("testdata/large-file.csv.gz")
 					assert.NoError(t, err)
@@ -145,7 +145,7 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 						}, nil
 					},
 				},
-				channel: make(chan any),
+				channel: make(chan Message),
 				expectedMessages: func() []Message {
 					msgs, err := msgsFromFile("testdata/large-file-invalid-content-type.csv.gz")
 					assert.NoError(t, err)
@@ -172,7 +172,7 @@ func TestDefaultClient_ReadFiles(t *testing.T) {
 					for {
 						select {
 						case msg := <-tc.channel:
-							receivedRecord, ok := msg.(Message).Record.(map[string]string)
+							receivedRecord, ok := msg.Record.(map[string]string)
 							assert.NotZero(t, ok)
 							expectedRecord, ok := expectedMessages[idx].Record.(map[string]string)
 							assert.NotZero(t, ok)

@@ -30,7 +30,7 @@ type (
 	// Client is the interface for interacting with an S3 bucket.
 	Client interface {
 		ListFiles(ctx context.Context, bucket, pattern string) ([]string, error)
-		ReadFiles(ctx context.Context, bucket string, files []string, concurrency int, ch chan<- any) error
+		ReadFiles(ctx context.Context, bucket string, files []string, concurrency int, ch chan<- Message) error
 	}
 	// DefaultClient is a concrete implementation of the Client interface that uses the AWS SDK for Go to interact with S3.
 	DefaultClient struct {
@@ -135,7 +135,7 @@ func (c *DefaultClient) ListFiles(ctx context.Context, bucket, pattern string) (
 //
 // The function returns an error if there is a problem reading the files or sending
 // the messages.
-func (c *DefaultClient) ReadFiles(ctx context.Context, bucket string, files []string, concurrency int, ch chan<- any) error {
+func (c *DefaultClient) ReadFiles(ctx context.Context, bucket string, files []string, concurrency int, ch chan<- Message) error {
 	// Create a done channel to signal when all the files have been processed
 	done := make(chan bool)
 	// Create an error channel to handle any errors that occur while processing the files
