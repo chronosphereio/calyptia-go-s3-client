@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-internal:
+    name: Build and test
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    env:
+      goreleaser-flags: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          # required for goreleaser to work properly.
+          fetch-depth: 0
+      
+      - run: git fetch --force --tags
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.CI_USERNAME }}
+          password: ${{ secrets.CI_PAT }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.18
+
+      - name: Install cmetrics
+        run: |
+          CMETRICS_VERSION=0.5.8
+          CMETRICS_RELEASE=v0.5.8
+          echo "Using release: CMETRICS_RELEASE"
+          echo "Using version: CMETRICS_VERSION"
+          wget https://github.com/calyptia/cmetrics/releases/download/${CMETRICS_RELEASE}/cmetrics_${CMETRICS_VERSION}_${TARGETARCH}-headers.deb
+          wget https://github.com/calyptia/cmetrics/releases/download/${CMETRICS_RELEASE}/cmetrics_${CMETRICS_VERSION}_${TARGETARCH}.deb
+          sudo dpkg -i *.deb
+          rm *.deb
+        shell: bash
+        env:
+          TARGETARCH: amd64
+
+      - name: Unit tests
+        run: |
+          go test -v -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: codecov/codecov-action@v3.1.4
+        with:
+          file: ./coverage.out
+          flags: ${{ runner.os }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Extract metadata from ghcr image
+        id: meta-github-image
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=pr
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Build AMD64 docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta-github-image.outputs.tags }}
+          labels: ${{ steps.meta-github-image.outputs.labels }}
+          
+      - name: Setup BATS
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: mig4/setup-bats@v1
+        with:
+          bats-version: 1.8.2
+
+      - name: Integration tests
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          ./testing/run-bats.sh
+        shell: bash
+        timeout-minutes: 10
+        env:
+          PLUGIN_IMAGE: ${{ steps.meta-github-image.outputs.tags }}
+
+      - name: Install Syft for sboms
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+        shell: bash
+
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v5
+        with:
+          gpg_private_key: ${{ secrets.CALYPTIA_GPG_KEY }}
+          passphrase: ${{ secrets.CALYPTIA_GPG_KEY_PASSPHRASE }}
+
+      - name: Build artefacts on top of cross compile image.
+        run: |
+          make build-amd64
+          sudo rm -rf go
+          make build-arm64
+        shell: bash
+        env:
+          GORELEASER_IMAGE: ghcr.io/calyptia/lts-advanced-plugin-template/goreleaser-cross:latest
+          GORELEASER_SNAPSHOT: ${{ github.event_name == 'pull_request' }}
+
+      # Note snapshot removal in v4: https://github.com/caarlos0/goreleaser-action-v4-auto-snapshot-example
+      - name: Set up snapshot build
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: echo "goreleaser-flags=--snapshot" >> $GITHUB_ENV
+
+      - name: Set up PR build
+        if: ${{ github.event_name == 'pull_request' }}
+        run: echo "goreleaser-flags=--skip-publish --skip-sign --skip-sbom --snapshot" >> $GITHUB_ENV
+
+      - name: Run GoReleaser with flags
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          version: latest
+          distribution: goreleaser-pro
+          args: release --skip-validate --clean ${{ env.goreleaser-flags }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_PRO_KEY }}
