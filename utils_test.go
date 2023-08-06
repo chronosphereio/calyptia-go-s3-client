@@ -1,4 +1,4 @@
-package s3_client
+package s3client
 
 import (
 	"bytes"

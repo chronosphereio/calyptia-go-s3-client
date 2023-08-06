@@ -1,4 +1,4 @@
-package s3_client
+package s3client
 
 import (
 	"bufio"
@@ -43,7 +43,6 @@ type (
 	Message struct {
 		Time   time.Time
 		Record any
-		tag    *string
 	}
 )
 
