@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-internal:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.20"
+
+      - name: Unit tests
+        run: |
+          go test -v -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: codecov/codecov-action@v3.1.4
+        with:
+          file: ./coverage.out
+          flags: ${{ runner.os }}
+          token: ${{ secrets.CODECOV_TOKEN }}
