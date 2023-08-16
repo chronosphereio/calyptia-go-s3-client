@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/alecthomas/assert/v2 v2.3.0
-	github.com/aws/aws-sdk-go v1.44.317
+	github.com/aws/aws-sdk-go v1.44.325
 	github.com/aws/aws-sdk-go-v2 v1.20.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.32
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.31
