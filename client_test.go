@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,9 +26,137 @@ func (n NullLogger) Warn(format string, a ...any)  {}
 func (n NullLogger) Info(format string, a ...any)  {}
 func (n NullLogger) Debug(format string, a ...any) {}
 
-func msgsFromFile(filePath string) ([]Message, error) {
-	var out []Message
+func TestDefaultClient_ReadFile(t *testing.T) {
+	ctx := context.TODO()
 
+	t.Run("ok", func(t *testing.T) {
+		tt := []*struct {
+			name             string
+			clientMock       *ifaces.ClientMock
+			file             string
+			expectedErr      error
+			bucket           string
+			expectedMessages func() []string
+		}{
+			{
+				name: "single line",
+				file: "single-line-file.txt",
+				clientMock: &ifaces.ClientMock{
+					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+						return &s3.GetObjectOutput{
+							Body:        io.NopCloser(bytes.NewReader([]byte("single line"))),
+							ContentType: aws.String("text/csv"),
+						}, nil
+					},
+				},
+				expectedMessages: func() []string {
+					return []string{"single line"}
+				},
+			},
+			{
+				name: "compressed multiline",
+				file: "testdata/large-file.csv.gz",
+				clientMock: &ifaces.ClientMock{
+					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+						pwd, err := os.Getwd()
+						assert.NoError(t, err)
+
+						filename := filepath.Join(pwd, "testdata/large-file.csv.gz")
+						// nolint:gosec //ignore this is just a test.
+						content, err := os.ReadFile(filename)
+						assert.NoError(t, err)
+						return &s3.GetObjectOutput{
+							Body:        io.NopCloser(bytes.NewReader(content)),
+							ContentType: aws.String("application/octet-stream"),
+						}, nil
+					},
+				},
+				expectedMessages: func() []string {
+					// assuming a helper function to read file content
+					lines, err := linesFromFile("testdata/large-file.csv.gz")
+					assert.NoError(t, err)
+					return lines
+				},
+			},
+			{
+				name: "compressed with invalid content type",
+				file: "testdata/large-file-invalid-content-type.csv.gz",
+				clientMock: &ifaces.ClientMock{
+					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+						pwd, err := os.Getwd()
+						assert.NoError(t, err)
+
+						filename := filepath.Join(pwd, "testdata/large-file-invalid-content-type.csv.gz")
+						// nolint:gosec //ignore this is just a test.
+						content, err := os.ReadFile(filename)
+						assert.NoError(t, err)
+						return &s3.GetObjectOutput{
+							Body:        io.NopCloser(bytes.NewReader(content)),
+							ContentType: aws.String("text/csv"),
+						}, nil
+					},
+				},
+				expectedMessages: func() []string {
+					lines, err := linesFromFile("testdata/large-file-invalid-content-type.csv.gz")
+					assert.NoError(t, err)
+					return lines
+				},
+			},
+			{
+				name: "line larger than 10MiB",
+				file: "very-large-line.txt",
+				clientMock: &ifaces.ClientMock{
+					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+						// Creating a string with more than 10MiB length.
+						veryLongLine := strings.Repeat("a", 11*1024*1024) // 11 MiB
+
+						return &s3.GetObjectOutput{
+							Body:        io.NopCloser(bytes.NewReader([]byte(veryLongLine))),
+							ContentType: aws.String("text/csv"),
+						}, nil
+					},
+				},
+				expectedErr:      bufio.ErrTooLong,               // Expecting an error in this case
+				expectedMessages: func() []string { return nil }, // No valid messages to expect here
+			},
+		}
+
+		for _, tc := range tt {
+			t.Run(tc.name, func(t *testing.T) {
+				c := DefaultClient{
+					Svc:    tc.clientMock,
+					Logger: NullLogger{},
+				}
+
+				withTimeout, cancel := context.WithTimeout(ctx, 1*time.Second)
+				defer cancel()
+
+				outCh, errCh := c.ReadFile(withTimeout, tc.bucket, tc.file, 64*1024, 10*1024*1024)
+
+				expectedMessages := tc.expectedMessages()
+				idx := 0
+				for {
+					select {
+					case line := <-outCh:
+						// Ensure we don't go beyond the expected messages length
+						if expectedMessages != nil && idx < len(expectedMessages) {
+							assert.Equal(t, line, expectedMessages[idx], "Mismatch at index %d", idx)
+							idx++
+						}
+					case err := <-errCh:
+						assert.Equal(t, err, tc.expectedErr)
+						return
+					case <-withTimeout.Done():
+						return
+					}
+				}
+			})
+		}
+	})
+}
+
+func linesFromFile(filePath string) ([]string, error) {
+	var out []string
 	pwd, err := os.Getwd()
 	if err != nil {
 		return out, err
@@ -47,150 +176,16 @@ func msgsFromFile(filePath string) ([]Message, error) {
 	}
 	defer reader.Close()
 
-	var msgs []Message
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		msgs = append(msgs, Message{
-			Record: map[string]string{
-				"_raw": scanner.Text(),
-				"file": path,
-			},
-		})
+		out = append(out, scanner.Text())
 	}
 
-	return msgs, nil
-}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
 
-func TestDefaultClient_ReadFiles(t *testing.T) {
-	ctx := context.TODO()
-
-	t.Run("ok", func(t *testing.T) {
-		tt := []struct {
-			name             string
-			clientMock       ifaces.ClientMock
-			files            []string
-			channel          chan Message
-			expectedErr      error
-			expectedMessages func() []Message
-			bucket           string
-		}{
-			{
-				name: "single line",
-				files: []string{
-					"single-line-file.txt",
-				},
-				clientMock: ifaces.ClientMock{
-					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
-						return &s3.GetObjectOutput{
-							Body:        io.NopCloser(bytes.NewReader([]byte("single line"))),
-							ContentType: aws.String("text/csv"),
-						}, nil
-					},
-				},
-				channel: make(chan Message),
-				expectedMessages: func() []Message {
-					return []Message{{
-						Record: map[string]string{
-							"_raw": "single line",
-							"file": "single-line-file.txt",
-						},
-					}}
-				},
-			},
-			{
-				name: "compressed multiline",
-				files: []string{
-					"testadata/large-file.csv.gz",
-				},
-				clientMock: ifaces.ClientMock{
-					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
-						pwd, err := os.Getwd()
-						assert.NoError(t, err)
-
-						filename := filepath.Join(pwd, "testdata/large-file.csv.gz")
-						//nolint gosec // this is a test, ignore
-						content, err := os.ReadFile(filename)
-						assert.NoError(t, err)
-						return &s3.GetObjectOutput{
-							Body:        io.NopCloser(bytes.NewReader(content)),
-							ContentType: aws.String("application/octet-stream"),
-						}, nil
-					},
-				},
-				channel: make(chan Message),
-				expectedMessages: func() []Message {
-					msgs, err := msgsFromFile("testdata/large-file.csv.gz")
-					assert.NoError(t, err)
-					assert.NotZero(t, msgs)
-					return msgs
-				},
-			},
-			{
-				name: "compressed with invalid content type",
-				files: []string{
-					"testdata/large-file-invalid-content-type.csv.gz",
-				},
-				clientMock: ifaces.ClientMock{
-					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
-						pwd, err := os.Getwd()
-						assert.NoError(t, err)
-
-						filename := filepath.Join(pwd, "testdata/large-file-invalid-content-type.csv.gz")
-						//nolint gosec // this is a test, ignore
-						content, err := os.ReadFile(filename)
-						assert.NoError(t, err)
-						return &s3.GetObjectOutput{
-							Body:        io.NopCloser(bytes.NewReader(content)),
-							ContentType: aws.String("text/csv"),
-						}, nil
-					},
-				},
-				channel: make(chan Message),
-				expectedMessages: func() []Message {
-					msgs, err := msgsFromFile("testdata/large-file-invalid-content-type.csv.gz")
-					assert.NoError(t, err)
-					assert.NotZero(t, msgs)
-					return msgs
-				},
-			},
-		}
-
-		//nolint copylocks //that's fine.
-		for _, tc := range tt {
-			t.Run(tc.name, func(t *testing.T) {
-				c := DefaultClient{
-					Svc:    &tc.clientMock,
-					Logger: NullLogger{},
-				}
-
-				withTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-				defer cancel()
-
-				idx := 0
-				go func() {
-					expectedMessages := tc.expectedMessages()
-					for {
-						select {
-						case msg := <-tc.channel:
-							receivedRecord, ok := msg.Record.(map[string]string)
-							assert.NotZero(t, ok)
-							expectedRecord, ok := expectedMessages[idx].Record.(map[string]string)
-							assert.NotZero(t, ok)
-							assert.Equal(t, receivedRecord["_raw"], expectedRecord["_raw"])
-							assert.Equal(t, filepath.Base(receivedRecord["file"]), filepath.Base(expectedRecord["file"]))
-							idx++
-						case <-withTimeout.Done():
-							return
-						}
-					}
-				}()
-
-				err := c.ReadFiles(withTimeout, tc.bucket, tc.files, 0, tc.channel)
-				assert.Equal(t, err, tc.expectedErr)
-				t.Logf("processed: %d messages for test case: %s", idx, tc.name)
-			})
-		}
-	})
+	return out, nil
 }
 
 func TestDefaultClient_ListFiles(t *testing.T) {

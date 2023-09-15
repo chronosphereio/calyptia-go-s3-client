@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"io"
 	"mime"
 	"path/filepath"
@@ -55,7 +56,7 @@ func GetFileReader(filename string) func(io.Reader) (io.ReadCloser, error) {
 				// The default HTTP transports that the AWS SDK uses will decompress objects transparently
 				// if the Content Encoding is gzip. Not everyone or everything properly sets the Content-Encoding
 				// header on their S3 objects, so we could be trying to process gzipped objects and not know it.
-				if err == gzip.ErrHeader {
+				if errors.Is(err, gzip.ErrHeader) {
 					rc := io.NopCloser(bytes.NewReader(orig))
 					return rc, nil
 				}
