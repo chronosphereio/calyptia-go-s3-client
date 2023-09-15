@@ -14,10 +14,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bmatcuk/doublestar"
 	"github.com/calyptia/go-s3-client/ifaces"
-	"github.com/calyptia/plugin"
 )
 
 type (
+	// Logger interface to represent a fluent-bit logging mechanism.
+	Logger interface {
+		Error(format string, a ...any)
+		Warn(format string, a ...any)
+		Info(format string, a ...any)
+		Debug(format string, a ...any)
+	}
+
 	// Client is the interface for interacting with an S3 bucket.
 	Client interface {
 		ListFiles(ctx context.Context, bucket, pattern string) ([]string, error)
@@ -27,12 +34,12 @@ type (
 	DefaultClient struct {
 		Client
 		Svc    ifaces.Client
-		Logger plugin.Logger
+		Logger Logger
 	}
 )
 
 // New returns a new DefaultClient configured with the given options and using the provided logger.
-func New(ctx context.Context, logger plugin.Logger, optsFns ...ClientOptsFunc) (*DefaultClient, error) {
+func New(ctx context.Context, logger Logger, optsFns ...ClientOptsFunc) (*DefaultClient, error) {
 	var opts ClientOpts
 	for _, optFn := range optsFns {
 		err := optFn(&opts)
@@ -54,9 +61,6 @@ func New(ctx context.Context, logger plugin.Logger, optsFns ...ClientOptsFunc) (
 			Transport: &http.Transport{
 				DisableCompression: true,
 			},
-		}
-		if opts.Endpoint != "" {
-			options.BaseEndpoint = &opts.Endpoint
 		}
 	})
 
