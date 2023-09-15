@@ -5,17 +5,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/alecthomas/assert/v2"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/calyptia/go-s3-client/ifaces"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/alecthomas/assert/v2"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/calyptia/go-s3-client/ifaces"
 )
 
 type NullLogger struct{}
@@ -29,9 +30,9 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 	ctx := context.TODO()
 
 	t.Run("ok", func(t *testing.T) {
-		tt := []struct {
+		tt := []*struct {
 			name             string
-			clientMock       ifaces.ClientMock
+			clientMock       *ifaces.ClientMock
 			file             string
 			expectedErr      error
 			bucket           string
@@ -40,7 +41,7 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 			{
 				name: "single line",
 				file: "single-line-file.txt",
-				clientMock: ifaces.ClientMock{
+				clientMock: &ifaces.ClientMock{
 					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 						return &s3.GetObjectOutput{
 							Body:        io.NopCloser(bytes.NewReader([]byte("single line"))),
@@ -55,12 +56,13 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 			{
 				name: "compressed multiline",
 				file: "testdata/large-file.csv.gz",
-				clientMock: ifaces.ClientMock{
+				clientMock: &ifaces.ClientMock{
 					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 						pwd, err := os.Getwd()
 						assert.NoError(t, err)
 
 						filename := filepath.Join(pwd, "testdata/large-file.csv.gz")
+						// nolint:gosec //ignore this is just a test.
 						content, err := os.ReadFile(filename)
 						assert.NoError(t, err)
 						return &s3.GetObjectOutput{
@@ -79,12 +81,13 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 			{
 				name: "compressed with invalid content type",
 				file: "testdata/large-file-invalid-content-type.csv.gz",
-				clientMock: ifaces.ClientMock{
+				clientMock: &ifaces.ClientMock{
 					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 						pwd, err := os.Getwd()
 						assert.NoError(t, err)
 
 						filename := filepath.Join(pwd, "testdata/large-file-invalid-content-type.csv.gz")
+						// nolint:gosec //ignore this is just a test.
 						content, err := os.ReadFile(filename)
 						assert.NoError(t, err)
 						return &s3.GetObjectOutput{
@@ -102,7 +105,7 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 			{
 				name: "line larger than 10MiB",
 				file: "very-large-line.txt",
-				clientMock: ifaces.ClientMock{
+				clientMock: &ifaces.ClientMock{
 					GetObjectFunc: func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 						// Creating a string with more than 10MiB length.
 						veryLongLine := strings.Repeat("a", 11*1024*1024) // 11 MiB
@@ -121,7 +124,7 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 		for _, tc := range tt {
 			t.Run(tc.name, func(t *testing.T) {
 				c := DefaultClient{
-					Svc:    &tc.clientMock,
+					Svc:    tc.clientMock,
 					Logger: NullLogger{},
 				}
 
@@ -147,7 +150,6 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 						return
 					}
 				}
-
 			})
 		}
 	})

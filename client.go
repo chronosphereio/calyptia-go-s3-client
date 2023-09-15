@@ -5,15 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"path/filepath"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bmatcuk/doublestar"
 	"github.com/calyptia/go-s3-client/ifaces"
 	"github.com/calyptia/plugin"
-	"io"
-	"net/http"
-	"path/filepath"
 )
 
 type (
@@ -133,7 +134,6 @@ func (c *DefaultClient) ReadFile(ctx context.Context, bucket string, file string
 			Bucket: &bucket,
 			Key:    &file,
 		})
-
 		if err != nil {
 			// On error, send to error channel and exit.
 			errChan <- err
