@@ -128,10 +128,10 @@ func TestDefaultClient_ReadFile(t *testing.T) {
 					Logger: NullLogger{},
 				}
 
-				withTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+				withTimeout, cancel := context.WithTimeout(ctx, 1*time.Second)
 				defer cancel()
 
-				outCh, errCh := c.ReadFile(withTimeout, tc.bucket, tc.file, 64*1024, 0)
+				outCh, errCh := c.ReadFile(withTimeout, tc.bucket, tc.file, 64*1024, 10*1024*1024)
 
 				expectedMessages := tc.expectedMessages()
 				idx := 0
