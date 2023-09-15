@@ -10,6 +10,22 @@ import (
 	"strings"
 )
 
+type gzipReader struct {
+	*gzip.Reader
+}
+
+func (gr *gzipReader) Read(p []byte) (n int, err error) {
+	return gr.Reader.Read(p)
+}
+
+type tarReader struct {
+	*tar.Reader
+}
+
+func (tr *tarReader) Read(p []byte) (n int, err error) {
+	return tr.Reader.Read(p)
+}
+
 // IsBinaryContentType returns true if the given content type is a binary content type,
 // and false otherwise.
 func IsBinaryContentType(contentType string) bool {
