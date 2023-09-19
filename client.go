@@ -62,6 +62,9 @@ func New(ctx context.Context, logger Logger, optsFns ...ClientOptsFunc) (*Defaul
 				DisableCompression: true,
 			},
 		}
+		if opts.Endpoint != "" {
+			options.BaseEndpoint = &opts.Endpoint
+		}
 	})
 
 	return &DefaultClient{Svc: client, Logger: logger}, nil
