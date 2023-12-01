@@ -1,9 +1,12 @@
 package s3client
 
 import (
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 )
 
 // ClientOpts represents options for configuring an S3 client.
@@ -16,6 +19,14 @@ type ClientOpts struct {
 	AccessKey string
 	// SecretKey is the secret key to use for authentication.
 	SecretKey string
+	// AssumeRoleARN is the part of assume role parameter for assume role authentication.
+	AssumeRoleARN string
+	// AssumeRoleSessionName is the part of assume role parameter for assume role authentication.
+	AssumeRoleSessionName string
+	// AssumeRoleExternalID is the part of assume role parameter for assume role authentication.
+	AssumeRoleExternalID string
+	// AssumeRoleDuration is the part of assume role parameter for assume role authentication.
+	AssumeRoleDuration *time.Duration
 }
 
 // LoadOptions returns a slice of functions that can be passed to the config.Load function
@@ -55,6 +66,25 @@ func (o *ClientOpts) LoadOptions() []func(options *config.LoadOptions) error {
 		))
 	}
 
+	if o.AssumeRoleARN == "" {
+		return loadOpts
+	}
+
+	loadOpts = append(loadOpts,
+		config.WithAssumeRoleCredentialOptions(func(options *stscreds.AssumeRoleOptions) {
+			options.RoleARN = o.AssumeRoleARN
+			if o.AssumeRoleSessionName != "" {
+				options.RoleSessionName = o.AssumeRoleSessionName
+			}
+			if o.AssumeRoleExternalID != "" {
+				options.ExternalID = aws.String(o.AssumeRoleExternalID)
+			}
+			if o.AssumeRoleDuration != nil {
+				options.Duration = *o.AssumeRoleDuration
+			}
+		}),
+	)
+
 	return loadOpts
 }
 
@@ -82,6 +112,23 @@ func WithStaticCredentials(a, s string) ClientOptsFunc {
 	return func(opts *ClientOpts) error {
 		opts.AccessKey = a
 		opts.SecretKey = s
+		return nil
+	}
+}
+
+// WithAssumeRoleCredentialOptions returns a ClientOptsFunc that sets of parameters for AssumeRole fields on the ClientOpts.
+func WithAssumeRoleCredentialOptions(a, s, id string, t *time.Duration) ClientOptsFunc {
+	return func(opts *ClientOpts) error {
+		opts.AssumeRoleARN = a
+		if s != "" {
+			opts.AssumeRoleSessionName = s
+		}
+		if id != "" {
+			opts.AssumeRoleExternalID = id
+		}
+		if t != nil {
+			opts.AssumeRoleDuration = t
+		}
 		return nil
 	}
 }
