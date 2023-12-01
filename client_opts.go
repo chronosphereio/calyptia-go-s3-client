@@ -1,6 +1,7 @@
 package s3client
 
 import (
+	"time"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -23,6 +24,8 @@ type ClientOpts struct {
 	AssumeRoleSessionName string
 	// AssumeRoleExternalID is the part of assume role parameter for assume role authentication.
 	AssumeRoleExternalID string
+	// AssumeRoleDuration is the part of assume role parameter for assume role authentication.
+	AssumeRoleDuration *time.Duration
 }
 
 // LoadOptions returns a slice of functions that can be passed to the config.Load function
@@ -75,6 +78,9 @@ func (o *ClientOpts) LoadOptions() []func(options *config.LoadOptions) error {
 			if (o.AssumeRoleExternalID != "") {
 				options.ExternalID = aws.String(o.AssumeRoleExternalID)
 			}
+			if (o.AssumeRoleDuration != nil) {
+				options.Duration = *o.AssumeRoleDuration
+			}
 		}),
 	)
 
@@ -110,7 +116,7 @@ func WithStaticCredentials(a, s string) ClientOptsFunc {
 }
 
 // WithAssumeRoleCredentialOptions returns a ClientOptsFunc that sets of parameters for AssumeRole fields on the ClientOpts.
-func WithAssumeRoleCredentialOptions(a, s, id string) ClientOptsFunc {
+func WithAssumeRoleCredentialOptions(a, s, id string, t *time.Duration) ClientOptsFunc {
 	return func(opts *ClientOpts) error {
 		opts.AssumeRoleARN = a
 		if (s != "") {
@@ -118,6 +124,9 @@ func WithAssumeRoleCredentialOptions(a, s, id string) ClientOptsFunc {
 		}
 		if (id != "") {
 			opts.AssumeRoleExternalID = id
+		}
+		if (t != nil) {
+			opts.AssumeRoleDuration = t
 		}
 		return nil
 	}
