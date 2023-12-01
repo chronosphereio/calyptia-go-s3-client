@@ -72,13 +72,13 @@ func (o *ClientOpts) LoadOptions() []func(options *config.LoadOptions) error {
 	loadOpts = append(loadOpts,
 		config.WithAssumeRoleCredentialOptions(func(options *stscreds.AssumeRoleOptions) {
 			options.RoleARN = o.AssumeRoleARN
-			if (o.AssumeRoleSessionName != "") {
+			if o.AssumeRoleSessionName != "" {
 				options.RoleSessionName = o.AssumeRoleSessionName
 			}
-			if (o.AssumeRoleExternalID != "") {
+			if o.AssumeRoleExternalID != "" {
 				options.ExternalID = aws.String(o.AssumeRoleExternalID)
 			}
-			if (o.AssumeRoleDuration != nil) {
+			if o.AssumeRoleDuration != nil {
 				options.Duration = *o.AssumeRoleDuration
 			}
 		}),
@@ -119,13 +119,13 @@ func WithStaticCredentials(a, s string) ClientOptsFunc {
 func WithAssumeRoleCredentialOptions(a, s, id string, t *time.Duration) ClientOptsFunc {
 	return func(opts *ClientOpts) error {
 		opts.AssumeRoleARN = a
-		if (s != "") {
+		if s != "" {
 			opts.AssumeRoleSessionName = s
 		}
-		if (id != "") {
+		if id != "" {
 			opts.AssumeRoleExternalID = id
 		}
-		if (t != nil) {
+		if t != nil {
 			opts.AssumeRoleDuration = t
 		}
 		return nil
