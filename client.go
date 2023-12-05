@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/bmatcuk/doublestar"
 	"github.com/calyptia/go-s3-client/ifaces"
 )
@@ -36,7 +37,18 @@ type (
 		Svc    ifaces.Client
 		Logger Logger
 	}
+	resolverV2 struct {
+		BaseEndpoint *string
+	}
 )
+
+func (r *resolverV2) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (
+	smithyendpoints.Endpoint,
+	error,
+) {
+	params.Endpoint = r.BaseEndpoint
+	return s3.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
+}
 
 // New returns a new DefaultClient configured with the given options and using the provided logger.
 func New(ctx context.Context, logger Logger, optsFns ...ClientOptsFunc) (*DefaultClient, error) {
@@ -63,7 +75,10 @@ func New(ctx context.Context, logger Logger, optsFns ...ClientOptsFunc) (*Defaul
 			},
 		}
 		if opts.Endpoint != "" {
-			options.BaseEndpoint = &opts.Endpoint
+			options.BaseEndpoint = aws.String(opts.Endpoint)
+			options.EndpointResolverV2 = &resolverV2{
+				BaseEndpoint: options.BaseEndpoint,
+			}
 		}
 	})
 
