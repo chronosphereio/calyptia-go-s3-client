@@ -201,8 +201,8 @@ func TestDefaultClient_ListFiles(t *testing.T) {
 							LastModified: aws.Time(time.Now()),
 						},
 					},
-					KeyCount: 1,
-					MaxKeys:  1000,
+					KeyCount: aws.Int32(1),
+					MaxKeys:  aws.Int32(1000),
 					Name:     aws.String("mock"),
 					Prefix:   aws.String("prefix"),
 				}, nil
@@ -233,8 +233,8 @@ func TestDefaultClient_ListFiles(t *testing.T) {
 							LastModified: aws.Time(time.Now()),
 						},
 					},
-					KeyCount: 2,
-					MaxKeys:  1000,
+					KeyCount: aws.Int32(2),
+					MaxKeys:  aws.Int32(1000),
 					Name:     aws.String("mock"),
 					Prefix:   aws.String("prefix"),
 				}, nil
