@@ -3,7 +3,7 @@ module github.com/calyptia/go-s3-client
 go 1.21.0
 
 require (
-	github.com/alecthomas/assert/v2 v2.3.0
+	github.com/alecthomas/assert/v2 v2.4.1
 	github.com/aws/aws-sdk-go v1.45.10
 	github.com/aws/aws-sdk-go-v2 v1.23.5
 	github.com/aws/aws-sdk-go-v2/config v1.18.39
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/alecthomas/repr v0.2.0 // indirect
+	github.com/alecthomas/repr v0.3.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.8 // indirect
