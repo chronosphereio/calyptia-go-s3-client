@@ -29,7 +29,7 @@ type ClientOpts struct {
 	// AssumeRoleDuration is the part of assume role parameter for assume role authentication.
 	AssumeRoleDuration *time.Duration
 	// EC2IMDSClientEnableState is used for IMDS authentication.
-	EC2IMDSClientEnableState imds.ClientEnableState
+	EC2IMDSClientEnableState *imds.ClientEnableState
 }
 
 // LoadOptions returns a slice of functions that can be passed to the config.Load function
@@ -58,12 +58,16 @@ func (o *ClientOpts) LoadOptions() []func(options *config.LoadOptions) error {
 		loadOpts = append(loadOpts, config.WithRegion(o.Region))
 	}
 
-	if o.EC2IMDSClientEnableState != imds.ClientDisabled {
-		// If IMDS is enabled/default enabled, this authentication method should be prioritized.
+	if o.EC2IMDSClientEnableState != nil {
+		// If IMDS is specified, this authentication method should be handled.
 		loadOpts = append(loadOpts, config.WithEC2IMDSClientEnableState(
-			o.EC2IMDSClientEnableState),
+			*o.EC2IMDSClientEnableState),
 		)
-		return loadOpts
+	} else {
+		// If IMDS is not specified, this authentication method should be disabled.
+		loadOpts = append(loadOpts, config.WithEC2IMDSClientEnableState(
+			imds.ClientDisabled),
+		)
 	}
 
 	if o.AccessKey != "" && o.SecretKey != "" {
@@ -145,7 +149,7 @@ func WithAssumeRoleCredentialOptions(a, s, id string, t *time.Duration) ClientOp
 }
 
 // WithEC2IMDSClientEnableState returns a ClientOptsFunc that sets EC2IMDSClientEnableState fields on the ClientOpts.
-func WithEC2IMDSClientEnableState(s imds.ClientEnableState) ClientOptsFunc {
+func WithEC2IMDSClientEnableState(s *imds.ClientEnableState) ClientOptsFunc {
 	return func(opts *ClientOpts) error {
 		opts.EC2IMDSClientEnableState = s
 		return nil
