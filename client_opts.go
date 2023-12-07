@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 )
 
 // ClientOpts represents options for configuring an S3 client.
@@ -27,6 +28,8 @@ type ClientOpts struct {
 	AssumeRoleExternalID string
 	// AssumeRoleDuration is the part of assume role parameter for assume role authentication.
 	AssumeRoleDuration *time.Duration
+	// EC2IMDSClientEnableState is used for IMDS authentication.
+	EC2IMDSClientEnableState *imds.ClientEnableState
 }
 
 // LoadOptions returns a slice of functions that can be passed to the config.Load function
@@ -53,6 +56,18 @@ func (o *ClientOpts) LoadOptions() []func(options *config.LoadOptions) error {
 		}
 		// Add a function to the slice that sets the region on the LoadOptions.
 		loadOpts = append(loadOpts, config.WithRegion(o.Region))
+	}
+
+	if o.EC2IMDSClientEnableState != nil {
+		// If IMDS is specified, this authentication method should be handled.
+		loadOpts = append(loadOpts, config.WithEC2IMDSClientEnableState(
+			*o.EC2IMDSClientEnableState),
+		)
+	} else {
+		// If IMDS is not specified, this authentication method should be disabled.
+		loadOpts = append(loadOpts, config.WithEC2IMDSClientEnableState(
+			imds.ClientDisabled),
+		)
 	}
 
 	if o.AccessKey != "" && o.SecretKey != "" {
@@ -129,6 +144,14 @@ func WithAssumeRoleCredentialOptions(a, s, id string, t *time.Duration) ClientOp
 		if t != nil {
 			opts.AssumeRoleDuration = t
 		}
+		return nil
+	}
+}
+
+// WithEC2IMDSClientEnableState returns a ClientOptsFunc that sets EC2IMDSClientEnableState fields on the ClientOpts.
+func WithEC2IMDSClientEnableState(s *imds.ClientEnableState) ClientOptsFunc {
+	return func(opts *ClientOpts) error {
+		opts.EC2IMDSClientEnableState = s
 		return nil
 	}
 }
