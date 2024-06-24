@@ -38,10 +38,11 @@ func (o *ClientOpts) LoadOptions() []func(options *config.LoadOptions) error {
 	var loadOpts []func(options *config.LoadOptions) error
 
 	if o.Region != "" {
-		// This is a special case for minio.
-		//	https://github.com/minio/minio/discussions/12030#discussioncomment-590564
-		//	this is backwards compatible flag to make it work with minio.
 		if o.Region == "minio" {
+			//nolint:staticcheck
+			// This is a special case for minio.
+			//	https://github.com/minio/minio/discussions/12030#discussioncomment-590564
+			//	this is backwards compatible flag to make it work with minio.
 			loadOpts = append(loadOpts, config.WithEndpointResolverWithOptions(
 				aws.EndpointResolverWithOptionsFunc(
 					func(service string, region string, options ...interface{}) (aws.Endpoint, error) {

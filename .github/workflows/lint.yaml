@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
 
 jobs:
-
   shellcheck-pr:
     runs-on: ubuntu-latest
     name: PR - Shellcheck
@@ -24,11 +23,11 @@ jobs:
         shell: bash
 
   docslint-pr:
-      runs-on: ubuntu-latest
-      name: PR - Markdownlint
-      steps:
-        - name: Run markdownlint
-          uses: actionshub/markdownlint@v3.1.4
+    runs-on: ubuntu-latest
+    name: PR - Markdownlint
+    steps:
+      - name: Run markdownlint
+        uses: actionshub/markdownlint@v3.1.4
 
   golint-pr:
     runs-on: ubuntu-latest
