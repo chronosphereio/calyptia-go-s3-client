@@ -48,9 +48,10 @@ func (r *resolverV2) ResolveEndpoint(ctx context.Context, params s3.EndpointPara
 	smithyendpoints.Endpoint,
 	error,
 ) {
-	params.Endpoint = aws.String(r.BaseEndpoint)
 	if r.Region != "" {
 		params.Region = aws.String(r.Region)
+	} else {
+		params.Endpoint = aws.String(r.BaseEndpoint)
 	}
 	return s3.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
 }
