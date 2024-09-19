@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.22
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.8
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.57.0
-	github.com/aws/smithy-go v1.20.2
+	github.com/aws/smithy-go v1.21.0
 	github.com/bmatcuk/doublestar v1.3.4
 )
 
