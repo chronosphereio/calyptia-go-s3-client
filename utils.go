@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bufio"
 	"compress/gzip"
-	"errors"
 	"io"
 	"mime"
 	"path/filepath"
