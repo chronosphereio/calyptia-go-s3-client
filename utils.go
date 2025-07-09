@@ -2,7 +2,6 @@ package s3client
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
@@ -42,22 +41,16 @@ func GetFileReader(filename string) func(io.Reader) (io.ReadCloser, error) {
 	switch {
 	case extension == ".gz" || extension == ".gzip":
 		return func(r io.Reader) (io.ReadCloser, error) {
-			// read the entire body from the reader.
-			// this should be buffered and with a seeker
-			body, err := io.ReadAll(r)
-			if err != nil {
-				return nil, err
-			}
-
-			orig := body
-			gr, err := gzip.NewReader(bytes.NewReader(body))
+			// Create a streaming gzip reader instead of loading entire file into memory
+			gr, err := gzip.NewReader(r)
 			if err != nil {
 				// See https://github.com/aws/aws-sdk-go/issues/1292
 				// The default HTTP transports that the AWS SDK uses will decompress objects transparently
 				// if the Content Encoding is gzip. Not everyone or everything properly sets the Content-Encoding
 				// header on their S3 objects, so we could be trying to process gzipped objects and not know it.
 				if errors.Is(err, gzip.ErrHeader) {
-					rc := io.NopCloser(bytes.NewReader(orig))
+					// If it's not actually gzipped, return the original reader
+					rc := io.NopCloser(r)
 					return rc, nil
 				}
 				return nil, err
